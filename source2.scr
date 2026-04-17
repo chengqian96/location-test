@@ -1,0 +1,103 @@
+#!/bin/bash
+
+rm *.su *.eps
+
+
+makewave file_out=wavelet.su t0=0.1 dt=0.001 nt=1024 fp=200 w=g2 verbose=1
+
+supsgraph < wavelet.su hbox=2 wbox=4 style=normal \
+        labelsize=10 label2='amplitude' label1='time' \
+        titlesize=-1 d1num=1 d1num=0.05 x1end=0.2 >g2_time.eps
+
+
+sufft < wavelet.su |suamp | supsgraph hbox=2 wbox=4 style=normal \
+        labelsize=10 label2='amplitude' label1='frequency' \
+        titlesize=-1 d1num=60  x1end=540 x2end=10 >g2_ampl.eps
+
+
+tmod=1.1
+dzrcv=10
+zrcv1=1450
+zrcv2=1550
+len_line=$[zrcv2-zrcv1]
+n=$[$len_line/$dzrcv]
+count=$[$n+1]
+
+makemod file_base=model.su \
+        cp0=4000 ro0=2000 cs0=2500 sizex=2000 sizez=3000 \
+        dx=1 dz=1 orig=0,0 \
+        verbose=1
+
+export filecp=model_cp.su
+export filecs=model_cs.su
+export filero=model_ro.su
+
+fdelmodc \
+        file_cp=$filecp file_cs=$filecs file_den=$filero \
+        ischeme=3 \
+        file_src=wavelet.su verbose=1 \
+        file_rcv=rec.su \
+        file_snap=snap.su \
+        zrcv1=1450 zrcv2=1550 dzrcv=10 \
+        xrcv1=200 xrcv2=200 dxrcv=0 \
+        rec_type_vx=1 rec_type_vz=1 rec_type_pp=1 rec_type_ss=1 rec_int_vx=1  \
+        dtrcv=0.001 rec_delay=0.1\
+        xsrc=1000 zsrc=1500 nshot=1 \
+        src_type=5 \
+        fmax=500 \
+        tmod=$tmod dt=0.0001 \
+        ntaper=200 left=4 right=4 bottom=4 top=4 \
+        tsnap1=0 tsnap2=1 dtsnap=0.05 \
+        xsnap1=0 xsnap2=2000 \
+        zsnap1=0 zsnap2=3000 \
+        sna_type_pp=1 sna_type_ss=1 sna_type_vz=1
+
+supsimage < rec_rss.su \
+        wbox=3 hbox=4 titlesize=-1 labelsize=10 label1="time [s]" label2="lateral position [m]"  > rec_rss.eps
+
+#extend the record
+
+sukill < rec_rss.su > zero_rss.su min=1 count=$count
+suvcat zero_rss.su rec_rss.su >re_src.su
+	
+
+supsimage < re_src.su \
+        wbox=3 hbox=4 titlesize=-1 labelsize=10 label1="time [s]" label2="depth[m]" f2=0 d2=10 > re_src.eps
+
+
+
+#reverse time migration
+fdelmodc \
+        file_cp=$filecs file_cs=$filecs file_den=$filero \
+        ischeme=1 \
+        file_src=re_src.su verbose=1 \
+        file_rcv=trec.su \
+        file_snap=tsnap.su \
+        grid_dir=1 \
+        zrcv1=1450 zrcv2=1550 dzrcv=10 \
+        xrcv1=1000 xrcv2=1000 dxrcv=0 \
+        rec_type_vx=1 rec_type_vz=1 rec_type_pp=1 rec_type_ss=1 rec_int_vx=1 \
+        dtrcv=0.001 \
+        src_multiwav=1 \
+        src_type=1 \
+        fmax=500 \
+        dt=0.0001 \
+        ntaper=200 left=4 right=4 bottom=4 top=4 \
+        tsnap1=0.8 tsnap2=1.2 dtsnap=0.01 \
+        xsnap1=0 xsnap2=2000 \
+        zsnap1=0 zsnap2=3000 \
+        sna_type_pp=1 sna_type_ss=1 sna_type_vz=1
+
+
+supsimage < trec_rp.su \
+        wbox=3 hbox=4 titlesize=-1 labelsize=10 \
+        label1="time [s]" label2="lateral position [m]"  f2=0 f1=-2 legend=1 lstyle=vertright lnice=1 > trec_rp.eps
+
+
+suwind < tsnap_sp.su key=fldr min=21 max=21 > zero_snap.su
+
+supsimage < zero_snap.su \
+        wbox=3 hbox=4 titlesize=-1 labelsize=10 \
+        label1="depth[m]" label2="lateral position [m]"  f2=0 f1=0 legend=1 lstyle=vertright lnice=1 > zero_snap.eps
+
+
